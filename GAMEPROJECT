@@ -1,0 +1,387 @@
+/*
+ * ============================================================
+ *   MIND GARDEN  —  A calm educational game for kids & youth
+ * ============================================================
+ *
+ *  Features:
+ *   1. Memory Match  — train concentration & memory
+ *   2. Number Puzzle — mental arithmetic practice
+ *   3. Word Scramble — vocabulary & language skills
+ *   4. Breathing Break — guided calm-down exercise
+ *
+ *  Compile:   gcc mindgarden.c -o mindgarden
+ *  Run:       ./mindgarden
+ *
+ *  Works on Linux / macOS terminals.
+ *  On Windows use MinGW or WSL.
+ * ============================================================
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+#ifdef _WIN32
+  #include <windows.h>
+  #define SLEEP(ms) Sleep(ms)
+  #define CLEAR "cls"
+#else
+  #include <unistd.h>
+  #define SLEEP(ms) usleep((ms) * 1000)
+  #define CLEAR "clear"
+#endif
+
+/* ── colours (ANSI) ────────────────────────────────────────── */
+#define RESET   "\033[0m"
+#define BOLD    "\033[1m"
+#define GREEN   "\033[32m"
+#define CYAN    "\033[36m"
+#define YELLOW  "\033[33m"
+#define MAGENTA "\033[35m"
+#define BLUE    "\033[34m"
+#define RED     "\033[31m"
+#define WHITE   "\033[37m"
+
+/* ── helpers ───────────────────────────────────────────────── */
+void clear_screen(void)  { system(CLEAR); }
+void pause_enter(void)   { printf("\n  Press ENTER to continue..."); getchar(); getchar(); }
+void print_stars(int n)  { for(int i=0;i<n;i++) printf(YELLOW "★" RESET); }
+
+void banner(const char *title, const char *colour) {
+    clear_screen();
+    printf("\n");
+    printf("%s  ╔══════════════════════════════════════╗\n", colour);
+    printf("  ║  🌿  %-35s║\n", title);
+    printf("  ╚══════════════════════════════════════╝\n" RESET "\n");
+}
+
+int input_int(void) {
+    int v; scanf("%d", &v); return v;
+}
+
+/* ── score tracker ─────────────────────────────────────────── */
+typedef struct { int stars; int games; } Score;
+Score player = {0, 0};
+
+void show_score(void) {
+    printf(CYAN "\n  Your garden: ");
+    print_stars(player.stars);
+    printf("  (%d star%s total)\n" RESET, player.stars, player.stars==1?"":"s");
+}
+
+void award(int s, const char *msg) {
+    player.stars += s;
+    player.games++;
+    printf(GREEN "\n  %s  You earned %d star%s!\n" RESET, msg, s, s==1?"":"s");
+    print_stars(s);
+    printf("\n");
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GAME 1 — MEMORY MATCH
+   A simple number-pair memory game on a 4×4 grid.
+   ═══════════════════════════════════════════════════════════ */
+
+#define GRID 4
+#define PAIRS (GRID*GRID/2)
+
+void shuffle(int *arr, int n) {
+    for (int i = n-1; i > 0; i--) {
+        int j = rand() % (i+1);
+        int tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+    }
+}
+
+void print_grid(int cards[], int revealed[]) {
+    printf("\n     1   2   3   4\n");
+    printf("   +---+---+---+---+\n");
+    for (int r = 0; r < GRID; r++) {
+        printf(" %c |", 'A'+r);
+        for (int c = 0; c < GRID; c++) {
+            int i = r*GRID+c;
+            if (revealed[i]) printf(GREEN " %d " RESET "|", cards[i]);
+            else             printf(BLUE " ? " RESET "|");
+        }
+        printf("\n   +---+---+---+---+\n");
+    }
+}
+
+int parse_pos(char col, int row, int *idx) {
+    col = (char)((col>='a' && col<='d') ? col-'a'+'A' : col);
+    if (col<'A'||col>'D') return 0;
+    if (row<1||row>4)     return 0;
+    *idx = (col-'A')*GRID + (row-1);
+    return 1;
+}
+
+void game_memory(void) {
+    banner("Memory Match", MAGENTA);
+    printf("  Find all matching pairs!\n");
+    printf("  Pick two cards per turn — enter like: A 2\n\n");
+
+    int cards[GRID*GRID], revealed[GRID*GRID];
+    memset(revealed, 0, sizeof(revealed));
+
+    /* fill with pairs 1..8 then shuffle */
+    for (int i = 0; i < PAIRS; i++) cards[i] = cards[i+PAIRS] = i+1;
+    shuffle(cards, GRID*GRID);
+
+    int found = 0, tries = 0;
+    while (found < PAIRS) {
+        print_grid(cards, revealed);
+        printf("\n  Pairs found: %d / %d   Tries: %d\n", found, PAIRS, tries);
+
+        /* first card */
+        int i1=-1, i2=-1;
+        char c1; int r1;
+        while(i1<0) {
+            printf("  First card (e.g. B 3): ");
+            scanf(" %c %d", &c1, &r1);
+            if (!parse_pos(c1,r1,&i1)||revealed[i1]) {
+                printf("  Invalid or already revealed.\n"); i1=-1;
+            }
+        }
+        revealed[i1]=1;
+        print_grid(cards, revealed);
+
+        /* second card */
+        int r2; char ch2;
+        while(i2<0||i2==i1) {
+            printf("  Second card: ");
+            scanf(" %c %d", &ch2, &r2);
+            if (!parse_pos(ch2,r2,&i2)||revealed[i2]||i2==i1) {
+                printf("  Invalid or same card.\n"); i2=-1;
+            }
+        }
+        revealed[i2]=1;
+        print_grid(cards, revealed);
+        tries++;
+
+        if (cards[i1]==cards[i2]) {
+            printf(GREEN "  ✓ Match! Great memory!\n" RESET);
+            found++;
+            SLEEP(800);
+        } else {
+            printf(RED "  ✗ No match. Memorise their positions!\n" RESET);
+            SLEEP(1500);
+            revealed[i1]=revealed[i2]=0;
+        }
+    }
+
+    printf(GREEN "\n  🎉 You found all pairs in %d tries!\n" RESET, tries);
+    int stars = tries <= PAIRS+2 ? 3 : tries <= PAIRS+5 ? 2 : 1;
+    award(stars, tries<=PAIRS+2?"Perfect memory!":"Well done!");
+    pause_enter();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GAME 2 — NUMBER PUZZLE (mental maths)
+   ═══════════════════════════════════════════════════════════ */
+
+typedef struct { int a; int b; char op; int ans; } Problem;
+
+Problem make_problem(int level) {
+    Problem p;
+    int range = 5 + level*5;
+    p.a = rand()%range + 1;
+    p.b = rand()%range + 1;
+    int r = rand()%3;
+    if      (r==0) { p.op='+'; p.ans = p.a+p.b; }
+    else if (r==1) { p.op='-'; if(p.a<p.b){int t=p.a;p.a=p.b;p.b=t;} p.ans=p.a-p.b; }
+    else           { p.op='x'; p.b=rand()%10+1; p.ans=p.a*p.b; }
+    return p;
+}
+
+void game_numbers(void) {
+    banner("Number Puzzle", CYAN);
+    printf("  Solve 8 maths problems as fast as you can!\n");
+    printf("  Choose level — 1: Easy  2: Medium  3: Hard\n");
+    printf("  Level: "); int level = input_int();
+    if (level<1||level>3) level=1;
+
+    int correct=0, total=8;
+    clock_t start = clock();
+
+    for (int q=1; q<=total; q++) {
+        Problem p = make_problem(level);
+        printf("\n  [%d/%d]  %d %c %d = ? : ", q, total, p.a, p.op, p.b);
+        int guess = input_int();
+        if (guess==p.ans) { printf(GREEN "  ✓ Correct!\n" RESET); correct++; }
+        else              { printf(RED "  ✗  Answer was %d\n" RESET, p.ans); }
+    }
+
+    double secs = (double)(clock()-start)/CLOCKS_PER_SEC;
+    printf(CYAN "\n  Score: %d / %d   Time: %.1f s\n" RESET, correct, total, secs);
+
+    int stars = correct>=7 ? 3 : correct>=5 ? 2 : correct>=3 ? 1 : 0;
+    if (stars>0) award(stars, correct==total?"Perfect score!":"Good work!");
+    else         printf(YELLOW "  Keep practising — you'll get it!\n" RESET);
+    pause_enter();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GAME 3 — WORD SCRAMBLE
+   ═══════════════════════════════════════════════════════════ */
+
+typedef struct { const char *word; const char *hint; } WordEntry;
+
+static WordEntry words[] = {
+    {"elephant",  "a big grey animal"},
+    {"rainbow",   "colourful arc in the sky"},
+    {"butterfly", "insect with colourful wings"},
+    {"garden",    "where flowers grow"},
+    {"mountain",  "a very tall land form"},
+    {"sunshine",  "what comes from the sun"},
+    {"dolphin",   "smart ocean animal"},
+    {"library",   "place full of books"},
+    {"puzzle",    "a game for your mind"},
+    {"river",     "flowing body of water"},
+};
+#define WORD_COUNT (int)(sizeof(words)/sizeof(words[0]))
+
+void scramble(const char *src, char *dst) {
+    strcpy(dst, src);
+    int n = (int)strlen(dst);
+    /* guarantee it's actually scrambled */
+    int tries = 0;
+    do {
+        for (int i=n-1; i>0; i--) {
+            int j = rand()%(i+1);
+            char tmp=dst[i]; dst[i]=dst[j]; dst[j]=tmp;
+        }
+        tries++;
+    } while (strcmp(dst,src)==0 && tries<20);
+}
+
+void game_words(void) {
+    banner("Word Scramble", YELLOW);
+    printf("  Unscramble 5 words!  Type your answer.\n\n");
+
+    /* pick 5 random unique words */
+    int used[WORD_COUNT]; memset(used,0,sizeof(used));
+    int correct=0;
+
+    for (int q=0; q<5; q++) {
+        int idx;
+        do { idx=rand()%WORD_COUNT; } while(used[idx]);
+        used[idx]=1;
+
+        char sc[32];
+        scramble(words[idx].word, sc);
+
+        printf("  [%d/5] Scrambled: " BOLD "%s" RESET "\n", q+1, sc);
+        printf("        Hint: %s\n", words[idx].hint);
+        printf("        Your answer: ");
+
+        char ans[32]; scanf("%31s", ans);
+        /* lowercase comparison */
+        for(int k=0;ans[k];k++) if(ans[k]>='A'&&ans[k]<='Z') ans[k]+=32;
+
+        if (strcmp(ans, words[idx].word)==0) {
+            printf(GREEN "  ✓ Correct!\n\n" RESET); correct++;
+        } else {
+            printf(RED "  ✗  The word was: %s\n\n" RESET, words[idx].word);
+        }
+    }
+
+    printf(CYAN "  Score: %d / 5\n" RESET, correct);
+    int stars = correct==5?3:correct>=3?2:correct>=2?1:0;
+    if (stars>0) award(stars, correct==5?"Word wizard!":"Nice vocabulary!");
+    else         printf(YELLOW "  Keep reading — words will get easier!\n" RESET);
+    pause_enter();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ACTIVITY 4 — BREATHING BREAK  (relaxation)
+   ═══════════════════════════════════════════════════════════ */
+
+void breathing_break(void) {
+    banner("Breathing Break  🌸", GREEN);
+    printf("  Take 3 slow breaths with me.\n");
+    printf("  This helps your mind feel calm and clear.\n");
+    printf("  Find a comfortable position and press ENTER.\n");
+    getchar(); getchar();
+
+    for (int round=1; round<=3; round++) {
+        printf(CYAN "\n  ─── Breath %d of 3 ───\n" RESET, round);
+
+        printf(GREEN "  Breathe IN slowly..." RESET);
+        fflush(stdout);
+        for (int i=0;i<4;i++) { SLEEP(1000); printf(" ."); fflush(stdout); }
+
+        printf(YELLOW "\n  Hold gently...     " RESET);
+        fflush(stdout);
+        for (int i=0;i<4;i++) { SLEEP(1000); printf(" ."); fflush(stdout); }
+
+        printf(BLUE "\n  Breathe OUT slowly..." RESET);
+        fflush(stdout);
+        for (int i=0;i<6;i++) { SLEEP(1000); printf(" ."); fflush(stdout); }
+
+        printf(GREEN "\n  Well done 🌿\n" RESET);
+        SLEEP(500);
+    }
+
+    printf(MAGENTA "\n  ✨ Great job! Your mind is fresh and calm.\n" RESET);
+    printf("     You earned a special calm star!\n");
+    award(1, "Calm and focused!");
+    pause_enter();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MAIN MENU
+   ═══════════════════════════════════════════════════════════ */
+
+void main_menu(void) {
+    clear_screen();
+    printf(GREEN);
+    printf("\n  ╔══════════════════════════════════════════╗\n");
+    printf("  ║   🌿  MIND GARDEN  🌿                    ║\n");
+    printf("  ║   A calm game for curious minds          ║\n");
+    printf("  ╚══════════════════════════════════════════╝\n");
+    printf(RESET);
+    show_score();
+    printf("\n");
+    printf(MAGENTA "  [1]" RESET " 🃏  Memory Match    — train your memory\n");
+    printf(CYAN    "  [2]" RESET " 🔢  Number Puzzle   — sharpen your maths\n");
+    printf(YELLOW  "  [3]" RESET " 🔤  Word Scramble   — grow your vocabulary\n");
+    printf(GREEN   "  [4]" RESET " 🌸  Breathing Break — calm your mind\n");
+    printf(WHITE   "  [5]" RESET " 🚪  Quit\n");
+    printf("\n  Choose (1–5): ");
+}
+
+int main(void) {
+    srand((unsigned)time(NULL));
+    int choice;
+
+    /* welcome */
+    clear_screen();
+    printf(GREEN "\n  Welcome to " BOLD "MIND GARDEN" RESET GREEN "! 🌱\n" RESET);
+    printf("  This is a place to learn, think, and feel calm.\n");
+    printf("  Earn stars by playing games and doing activities.\n");
+    printf("  Have fun and take your time!\n");
+    pause_enter();
+
+    do {
+        main_menu();
+        choice = input_int();
+        switch(choice) {
+            case 1: game_memory();    break;
+            case 2: game_numbers();   break;
+            case 3: game_words();     break;
+            case 4: breathing_break(); break;
+            case 5:
+                clear_screen();
+                printf(GREEN "\n  Thanks for playing Mind Garden! 🌿\n" RESET);
+                printf("  Final garden: ");
+                print_stars(player.stars);
+                printf("  (%d star%s)\n\n", player.stars, player.stars==1?"":"s");
+                printf("  See you next time! 👋\n\n");
+                break;
+            default:
+                printf(RED "  Please choose 1–5.\n" RESET);
+        }
+    } while (choice != 5);
+
+    return 0;
+}
